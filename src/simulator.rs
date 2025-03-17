@@ -331,25 +331,31 @@ enum ModifyCell {
     Type(CellType),
 }
 
+// Implementation of methods for the MatchCell enum
 impl MatchCell {
     /// Checks if this pattern matches the given cell
     fn match_cell(&self, cell: Cell) -> bool {
         match self {
+            // If we want an exact match, check if the cell type is the same
             MatchCell::Exact(cell_type) => {
                 *cell_type == cell.cell_type
             },
+            // "Any" matches any cell type
             MatchCell::Any => true,
         }
     }
 }
 
+// Implementation of methods for the ModifyCell enum
 impl ModifyCell {
     /// Applies the modification to the given cell
     fn set_cell(&self, mut cell: Cell) -> Cell {
         match self {
+            // Change the cell type to the specified type
             ModifyCell::Type(cell_type) => {
                 cell.cell_type = *cell_type
             },
+            // Leave the cell unchanged
             ModifyCell::Same => { },
         }
         cell
@@ -385,6 +391,9 @@ impl CellRule {
 
     /// Checks if this rule's pattern matches the given neighborhood
     fn match_if(&self, nb: NeighbourhoodCells) -> bool {
+        // Zip together the pattern and the actual cells
+        // Check that all cells match their corresponding pattern
+        // Also apply the probability check
         self.if_nb.iter()
             .zip(nb.iter())
             .all(|(pattern, cell)| pattern.match_cell(*cell) && rand() < self.probability)
@@ -392,16 +401,22 @@ impl CellRule {
 
     /// Applies this rule's modifications to the given neighborhood
     fn set_then(&self, nb: NeighbourhoodCells) -> NeighbourhoodCells {
+        // Zip together the modifiers and the actual cells
+        // Apply each modifier to its corresponding cell
         self.then_nb.iter()
             .zip(nb.iter())
             .map(|(pattern, cell)| pattern.set_cell(*cell))
-            .collect::<Vec<Cell>>()
-            .try_into()
-            .unwrap()
+            .collect::<Vec<Cell>>()  // Collect into a Vec
+            .try_into()              // Try to convert to a fixed-size array
+            .unwrap()                // This will always succeed because we know the sizes match
     }
 }
 
+// A set of rules for our cellular automaton simulation
+// These define how cells interact in 2x2 neighborhoods
 const RULES: &[CellRule] = &[
+    // Rule 1: Sand falls straight down
+    // If we have sand above and empty below, move the sand down
     CellRule::new(1.0, [
         MatchCell::Exact(CellType::Sand), MatchCell::Any,
         MatchCell::Exact(CellType::Empty), MatchCell::Any,
@@ -410,6 +425,9 @@ const RULES: &[CellRule] = &[
         ModifyCell::Type(CellType::Empty), ModifyCell::Same,
         ModifyCell::Type(CellType::Sand), ModifyCell::Same,
     ]),
+    
+    // Rule 2: Sand falls diagonally to the right
+    // If we have sand to the left and empty to the bottom-right, move the sand diagonally
     CellRule::new(1.0, [
         MatchCell::Any, MatchCell::Exact(CellType::Sand),
         MatchCell::Any, MatchCell::Exact(CellType::Empty),
@@ -418,6 +436,9 @@ const RULES: &[CellRule] = &[
         ModifyCell::Same, ModifyCell::Type(CellType::Empty),
         ModifyCell::Same, ModifyCell::Type(CellType::Sand),
     ]),
+    
+    // Rule 3: Sand falls diagonally to the left with another sand below right
+    // More complex pattern for sand movement
     CellRule::new(1.0, [
         MatchCell::Exact(CellType::Sand), MatchCell::Any,
         MatchCell::Exact(CellType::Sand), MatchCell::Exact(CellType::Empty),
@@ -426,6 +447,9 @@ const RULES: &[CellRule] = &[
         ModifyCell::Type(CellType::Empty), ModifyCell::Same,
         ModifyCell::Type(CellType::Sand),  ModifyCell::Type(CellType::Sand),
     ]),
+    
+    // Rule 4: Sand falls diagonally to the right with another sand below left
+    // More complex pattern for sand movement
     CellRule::new(1.0, [
         MatchCell::Any,                    MatchCell::Exact(CellType::Sand),
         MatchCell::Exact(CellType::Empty), MatchCell::Exact(CellType::Sand),
@@ -439,8 +463,10 @@ const RULES: &[CellRule] = &[
 /// Alternative simulation implementation using cellular automaton rules
 pub struct CellularSim;
 
+// Implement the Simulator trait for CellularSim
 impl Simulator for CellularSim {
     fn tick(&mut self, space: &mut Space) {
+        // Delegate to our main simulation method
         self.advance(space);
     }
 }
@@ -448,23 +474,33 @@ impl Simulator for CellularSim {
 impl CellularSim {
     /// Advances the cellular automaton simulation by one step
     pub fn advance(&mut self, space: &mut Space) {
+        // Increment the generation counter
         space.increment_generation();
+        
+        // Alternate which cells we process each generation to reduce artifacts
+        // This is a common technique in cellular automata to ensure uniform behavior
         let start = if space.get_generation() % 2 == 0 { 0 } else { 1 };
 
+        // Process the grid, but only every other cell in a checkerboard pattern
+        // This helps prevent cascading updates and ensures more stable behavior
         for y in (start..(space.get_height() as i32 - start)).step_by(2) {
             for x in (start..(space.get_width() as i32 - start)).step_by(2) {
-                // The 2 x 2 grid start at (x, y) needs to be evaluated
-
+                // Get the 2x2 grid starting at (x, y)
                 let mut square = self.get_neighbourhood(space, x, y);
 
+                // Try to apply each rule in order until one matches
                 for rule in RULES {
                     if rule.match_if(square) {
+                        // Apply the rule and stop checking others
                         square = rule.set_then(square);
                         break;
                     }
                 }
 
-/*
+                // The following code is commented out, but would implement
+                // additional physics rules directly rather than using the rule system
+
+                /*
                 // Falling downwards rule (Gravity)
                 if square[0][0].1.density > square[1][0].1.density {
                     swap!(square[0][0], square[1][0]);
@@ -489,8 +525,9 @@ impl CellularSim {
                   && (square[1][1].0.cell_type == CellType::Water || square[1][1].0.cell_type == CellType::Empty) {
                     swap!(square[1][0], square[1][1]);
                 }
-*/
+                */
 
+                // Write the updated cells back to the space
                 self.set_neighbourhood(space, x, y, &square);
             }
         }
@@ -498,15 +535,19 @@ impl CellularSim {
 
     /// Gets the 2x2 neighborhood of cells at the specified position
     fn get_neighbourhood(&self, space: &mut Space, x: i32, y: i32) -> [Cell; 4] {
+        // Get each of the four cells in the 2x2 grid
         let cell1a = *space.get_cell_at(space.get_index(x as u32, y as u32));
         let cell1b = *space.get_cell_at(space.get_index(x as u32 + 1, y as u32));
         let cell2a = *space.get_cell_at(space.get_index(x as u32, y as u32 + 1));
         let cell2b = *space.get_cell_at(space.get_index(x as u32 + 1, y as u32 + 1));
+        
+        // Return the cells as a 4-element array
         [ cell1a, cell1b, cell2a, cell2b ]
     }
 
     /// Sets the 2x2 neighborhood of cells at the specified position
     fn set_neighbourhood(&self, space: &mut Space, x: i32, y: i32, square: &[Cell; 4]) {
+        // Write each of the four cells back to their positions in the space
         space.set_cell(space.get_index(x as u32, y as u32), &square[0]);
         space.set_cell(space.get_index(x as u32 + 1, y as u32), &square[1]);
         space.set_cell(space.get_index(x as u32, y as u32 + 1), &square[2]);
@@ -517,9 +558,9 @@ impl CellularSim {
 /// Generates a random value for adding variation to simulation
 fn random_modifier() -> i32 {
     match rand() {
-        x if x < 0.33 => 1,
-        x if x < 0.66 => -1,
-        _ => 0,
+        x if x < 0.33 => 1,     // 33% chance of moving right/up
+        x if x < 0.66 => -1,    // 33% chance of moving left/down
+        _ => 0,                 // 33% chance of not moving horizontally/vertically
     }
 }
 
