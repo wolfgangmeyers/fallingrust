@@ -8,7 +8,11 @@ use std::cell::RefCell;
 // Import WebAssembly and browser-related modules
 use wasm_bindgen::prelude::*;           // For JavaScript interop
 use wasm_bindgen::JsCast;               // For type casting between JavaScript and Rust types
-use web_sys::{ Document, Window, HtmlElement, HtmlCanvasElement, CanvasRenderingContext2d, MouseEvent, TouchEvent };
+use web_sys::{
+    Document, Window, HtmlElement, HtmlCanvasElement, 
+    CanvasRenderingContext2d, MouseEvent, TouchEvent,
+    HtmlInputElement, Event
+};
 
 // Import our game modules
 use crate::world::World;
@@ -43,6 +47,7 @@ pub fn init_dom(world: Rc<RefCell<World>>) {
 
     // Initialize all event handlers
     init_button_events(&document, world.clone());  // UI buttons (play/pause, cell type selection)
+    init_slider_events(&document, world.clone());  // Slider controls (brush size)
     init_mouse_events(&canvas, world.clone());     // Mouse input on canvas
     init_touch_events(&canvas, world.clone());     // Touch input for mobile devices
     init_draw_events(&window, canvas, world.clone()); // Animation loop for rendering
@@ -70,6 +75,36 @@ fn init_button_events(document: &Document, world: Rc<RefCell<World>>) {
     for cell_type in CellType::iter() {
         let props = CellType::get_properties(*cell_type);
         create_select_button(&document, &container, world.clone(), props.name, *cell_type);
+    }
+}
+
+// Sets up event handlers for slider controls
+fn init_slider_events(document: &Document, world: Rc<RefCell<World>>) {
+    // Get the brush size slider element
+    if let Some(slider_element) = document.get_element_by_id("brush-size-slider") {
+        let slider = slider_element.dyn_into::<HtmlInputElement>().unwrap();
+        let value_display = document.get_element_by_id("brush-size-value").unwrap();
+        
+        // Set the initial value display
+        value_display.set_text_content(Some(&slider.value()));
+        
+        // Update the brush size when the slider changes
+        let world_clone = world.clone();
+        let value_display_clone = value_display.clone();
+        let slider_clone = slider.clone();
+        let oninput_callback = Closure::wrap(Box::new(move |_: Event| {
+            let size_value = slider_clone.value().parse::<i32>().unwrap_or(2);
+            
+            // Update the display text
+            value_display_clone.set_text_content(Some(&size_value.to_string()));
+            
+            // Update the brush size in the space
+            world_clone.borrow_mut().space.set_brush_size(size_value);
+        }) as Box<dyn FnMut(Event)>);
+        
+        // Attach the event listener
+        slider.set_oninput(Some(oninput_callback.as_ref().unchecked_ref()));
+        oninput_callback.forget();
     }
 }
 

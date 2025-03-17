@@ -15,6 +15,8 @@ pub struct Space {
     generation: u8,
     /// A flat vector storing all cells in row-major order
     cells: Vec<Cell>,
+    /// Radius of the brush tool (e.g., 2 means a 5x5 area)
+    brush_size: i32,
 }
 
 impl Space {
@@ -37,6 +39,7 @@ impl Space {
             height: height,
             generation: 0,       // Start at generation 0
             cells: cells,        // Our vector of cells
+            brush_size: 2,       // Default brush size (5x5 area)
         }
     }
 
@@ -54,6 +57,18 @@ impl Space {
     /// This is used to track which cells have been updated in the current simulation step
     pub fn get_generation(&self) -> u8 {
         self.generation
+    }
+
+    // Returns the current brush size (radius)
+    pub fn get_brush_size(&self) -> i32 {
+        self.brush_size
+    }
+
+    // Sets the brush size (radius)
+    // The brush will be a square with sides of length 2*size+1
+    pub fn set_brush_size(&mut self, size: i32) {
+        // Ensure brush size is at least 0 (single pixel) and not too large
+        self.brush_size = size.max(0).min(10); // Limit to reasonable range (0-10)
     }
 
     /// Increments the generation counter for the simulation
@@ -96,9 +111,9 @@ impl Space {
     /// Used for placing cells with the mouse
     pub fn add(&mut self, x: i32, y: i32, cell_type: CellType) {
         let mut created = 0;
-        // Loop through a 5x5 grid centered at (x,y)
-        for dy in -2..=2 {   // -2, -1, 0, 1, 2
-            for dx in -2..=2 {   // -2, -1, 0, 1, 2
+        // Loop through a grid centered at (x,y) with size determined by brush_size
+        for dy in -self.brush_size..=self.brush_size {
+            for dx in -self.brush_size..=self.brush_size {
                 // Check if this position is within bounds
                 if let Some(i) = self.get_index_checked(x + dx, y + dy) {
                     // Only replace every other cell, and only if the target is empty

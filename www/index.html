@@ -25,6 +25,21 @@
       #top-area {
         overflow: hidden;
       }
+      
+      #brush-size-container {
+        margin-top: 10px;
+      }
+      
+      #brush-size-slider {
+        width: 150px;
+        vertical-align: middle;
+      }
+      
+      #brush-size-value {
+        display: inline-block;
+        width: 20px;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -38,6 +53,11 @@
       <div>
         <button id="play-pause">Play/Pause</button>
         <span id="frame-rate"></span>
+      </div>
+      <div id="brush-size-container">
+        <label for="brush-size-slider">Brush Size: </label>
+        <input type="range" id="brush-size-slider" min="0" max="10" value="2" step="1">
+        <span id="brush-size-value">2</span>
       </div>
     </div>
 
